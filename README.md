@@ -57,6 +57,7 @@ descender 120) in `js/glyphs.js`. Ink is compared to points sampled every 2 unit
 - **Coverage:** share of the path that has ink within the tolerance
 - **Precision:** share of the ink that sits near the path
 - **Length ratio:** ink length vs. path length, so scribbling over the whole letter doesn't pass
+- **Every stroke:** each stroke must be mostly covered, so skipping the bars on an I or the tail on a Q doesn't pass
 
 Neatness level sets all three thresholds (`STRICT` in `js/app.js`). Stroke order is shown but not enforced.
 

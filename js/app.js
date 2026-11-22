@@ -9,9 +9,9 @@
   // Tolerances in glyph units (cap height = 80 units)
   var STRICT = {
     // tol: how close ink must be to the path; cov: share of path covered; prec: share of ink near the path;
-    // len: max ink length vs. path length (stops scribbling over everything)
-    trace: { easy: { tol: 11, cov: 0.75, prec: 0.7, len: 2.6 }, medium: { tol: 9, cov: 0.85, prec: 0.78, len: 2.2 }, hard: { tol: 7, cov: 0.9, prec: 0.85, len: 1.8 } },
-    write: { easy: { tol: 14, cov: 0.68, prec: 0.65, len: 2.6 }, medium: { tol: 12, cov: 0.78, prec: 0.72, len: 2.2 }, hard: { tol: 10, cov: 0.85, prec: 0.8, len: 1.9 } }
+    // len: max ink length vs. path length (stops scribbling over everything); each: min coverage of every single stroke
+    trace: { easy: { tol: 11, cov: 0.75, prec: 0.7, len: 2.6, each: 0.65 }, medium: { tol: 9, cov: 0.85, prec: 0.78, len: 2.2, each: 0.7 }, hard: { tol: 7, cov: 0.9, prec: 0.85, len: 1.8, each: 0.75 } },
+    write: { easy: { tol: 14, cov: 0.68, prec: 0.65, len: 2.6, each: 0.6 }, medium: { tol: 12, cov: 0.78, prec: 0.72, len: 2.2, each: 0.65 }, hard: { tol: 10, cov: 0.85, prec: 0.8, len: 1.9, each: 0.7 } }
   };
   var PRAISE = ['Great job!', 'Awesome!', 'You did it!', 'Super tracing!', 'Wow, nice work!', 'Choo choo! Great job!', 'Fantastic!'];
 
@@ -243,6 +243,12 @@
   function polyLen(st) { var L = 0; for (var i = 1; i < st.length; i++) L += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]); return L; }
   function guideLen() { return Math.max(1, strokes.reduce(function (a, st) { return a + polyLen(st); }, 0)); }
   function inkLength() { return ink.reduce(function (a, st) { return a + polyLen(st); }, 0); }
+  function minStrokeCov(flags) {
+    var tot = [], hit = [];
+    guide.forEach(function (g, i) { tot[g.s] = (tot[g.s] || 0) + 1; if (flags[i]) hit[g.s] = (hit[g.s] || 0) + 1; });
+    var m = 1; for (var k = 0; k < tot.length; k++) m = Math.min(m, (hit[k] || 0) / tot[k]);
+    return m;
+  }
   function coverage() { var n = 0; guide.forEach(function (g) { if (g.c) n++; }); return guide.length ? n / guide.length : 0; }
 
   // Write mode: normalise the child's writing to the model's bounding box, then score.
@@ -276,16 +282,17 @@
     var cov = covered.filter(Boolean).length / guide.length;
     var inkLen = 0;
     for (var k = 1; k < pts.length; k++) inkLen += Math.hypot((pts[k][0] - pts[k - 1][0]) * sx, (pts[k][1] - pts[k - 1][1]) * sy);
-    return { cov: cov, prec: 1 - offN / pts.length, len: inkLen / guideLen() };
+    return { cov: cov, prec: 1 - offN / pts.length, len: inkLen / guideLen(), each: minStrokeCov(covered) };
   }
 
   function evaluate(fromButton) {
     if (!cur || locked) return;
     var need = tol();
-    var r = cur.step === 'trace' ? { cov: coverage(), prec: inkTotal ? 1 - inkOff / inkTotal : 0, len: inkLength() / guideLen() } : scoreWrite();
+    var r = cur.step === 'trace' ? { cov: coverage(), prec: inkTotal ? 1 - inkOff / inkTotal : 0, len: inkLength() / guideLen(), each: minStrokeCov(guide.map(function (g) { return g.c; })) } : scoreWrite();
     var neat = r.prec >= need.prec && r.len <= need.len;
-    if (r.cov >= need.cov && neat) return success();
-    if (cur.step === 'trace' && r.cov >= need.cov && !neat) return gentleFail('Stay on the dotted path!');
+    var full = r.cov >= need.cov && r.each >= need.each;
+    if (full && neat) return success();
+    if (cur.step === 'trace' && full && !neat) return gentleFail('Stay on the dotted path!');
     if (fromButton) {
       if (!ink.length) return message(cur.step === 'trace' ? 'Follow the dots with your finger!' : 'Write it in the big box!');
       if (cur.step === 'trace') return message('Keep going — make it all green!');
