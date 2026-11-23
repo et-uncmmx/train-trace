@@ -145,7 +145,7 @@
     var svg = $('#homeTrain');
     var cars = ['engine', 'tender', 'passenger', 'caboose'];
     svg.innerHTML = '<g class="chug">' + cars.map(function (id, i) {
-      return '<g transform="translate(' + (-i * 74) + ',0)">' + World.carDrawing(id) + '</g>';
+      return '<g transform="translate(' + (-i * 74) + ',0)">' + World.carDrawing(id, S.progress.engineColor) + '</g>';
     }).join('') + '</g><rect x="-180" y="0" width="260" height="4" rx="2" fill="#8d6e63"/>';
   }
 
@@ -560,6 +560,28 @@
     show('world');
     Sound.pop();
     setTimeout(function () { Sound.say('You got a ' + piece.name + '!'); if (piece.type === 'car') Sound.toot(); }, 400);
+    if (id === 'engine') setTimeout(function () { if (current === 'world') openPaint(true); }, 2200);
+  }
+
+  // ---------- engine colour (per player) ----------
+  function openPaint(first) {
+    $('#paintTitle').textContent = first ? 'What color is your engine?' : 'Paint your engine!';
+    var currentColor = World.engineColor(S.progress.engineColor).id;
+    $('#paintGrid').innerHTML = World.ENGINE_COLORS.map(function (e) {
+      return '<button class="paint-opt' + (e.id === currentColor ? ' on' : '') + '" data-paint="' + e.id + '" aria-label="' + e.name + '">' +
+        '<svg viewBox="-44 -56 88 60">' + World.carDrawing('engine', e.id) + '</svg><span><i style="background:' + e.c + '"></i>' + e.name + '</span></button>';
+    }).join('');
+    $('#paintModal').hidden = false;
+    Sound.say(first ? 'What color is your engine? Pick one!' : 'Pick a color for your engine!');
+  }
+  function paint(colorId) {
+    S.progress.engineColor = colorId; save();
+    $('#paintModal').hidden = true;
+    var e = World.engineColor(colorId);
+    pendingHighlight = { id: 'engine', car: 0 };
+    if (current === 'world') renderWorld();
+    Sound.toot();
+    Sound.say('Your engine is ' + e.name.toLowerCase() + '!');
   }
   function nthIndex(arr, v, n) { for (var i = 0, k = 0; i < arr.length; i++) if (arr[i] === v && k++ === n) return i; return -1; }
 
@@ -568,6 +590,7 @@
   function renderWorld() {
     World.build($('#worldSvg'), S.progress, pendingHighlight);
     pendingHighlight = null;
+    $('#paintBtn').hidden = !S.progress.owned.engine;
     var hint = $('#worldHint'), p = S.progress, left = S.settings.threshold - p.since;
     if (p.pending > 0) { hint.innerHTML = '🎁 You have a prize waiting! Tap the present.'; hint.hidden = false; }
     else if (!p.owned.engine) { hint.innerHTML = 'Trace ' + left + ' more to earn your first train engine! 🚂'; hint.hidden = false; }
@@ -691,6 +714,8 @@
   var actions = {
     practice: function () { show('practice'); },
     world: function () { show('world'); },
+    paint: function () { openPaint(false); },
+    'close-paint': function () { $('#paintModal').hidden = true; },
     home: function () { show('home'); },
     parent: openGate,
     'close-gate': function () { $('#gateModal').hidden = true; },
@@ -740,6 +765,8 @@
       if (opt) { claim(opt.getAttribute('data-piece')); return; }
       var ch = e.target.closest('#pickGrid [data-ch]');
       if (ch) { $('#pickModal').hidden = true; stopDemo(); startChar(ch.getAttribute('data-ch'), firstStep()); return; }
+      var pt = e.target.closest('[data-paint]');
+      if (pt) { paint(pt.getAttribute('data-paint')); return; }
       var pc = e.target.closest('[data-player]');
       if (pc) { selectPlayer(pc.getAttribute('data-player')); Sound.say('Hi ' + S.name + '!'); show('home'); return; }
       var av = e.target.closest('[data-avatar]');

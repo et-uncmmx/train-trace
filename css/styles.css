@@ -184,6 +184,15 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: 0; touch
 .act { padding: 10px 16px; border-radius: 14px; font-size: 16px; font-weight: 800; background: #eef1f6; }
 .act.warn { background: #ffe3e3; color: #b00020; }
 
+/* ---------- engine paint ---------- */
+.paint-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px; margin-top: 10px; }
+.paint-opt { background: var(--soft); border-radius: 20px; padding: 8px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 18px; font-weight: 800; border: 4px solid transparent; box-shadow: 0 4px 0 rgba(0,0,0,.08); }
+.paint-opt svg { width: 100%; height: 70px; }
+.paint-opt span { display: flex; align-items: center; gap: 6px; }
+.paint-opt i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.paint-opt.on { border-color: #ffbe0b; background: #fff8d6; }
+.paint-opt:active { transform: translateY(3px); }
+
 /* ---------- confetti ---------- */
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
 .confetti i { position: absolute; top: -20px; width: 12px; height: 18px; border-radius: 3px; animation: fall 1.6s ease-in forwards; }

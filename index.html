@@ -78,6 +78,7 @@
     <header class="topbar">
       <button class="round" data-action="home" aria-label="Home">🏠</button>
       <div id="worldMeter" class="meter"></div>
+      <button id="paintBtn" class="round" data-action="paint" aria-label="Paint engine" hidden>🎨</button>
       <button class="round pill" data-action="practice">✏️ Trace</button>
     </header>
     <div class="world-wrap">
@@ -93,6 +94,15 @@
       <h2>You earned a prize!</h2>
       <p class="sub">Pick one for your train world</p>
       <div id="rewardOptions" class="reward-options"></div>
+    </div>
+  </div>
+
+  <div id="paintModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="gift-burst">🎨</div>
+      <h2 id="paintTitle">Paint your engine!</h2>
+      <div id="paintGrid" class="paint-grid"></div>
+      <button class="big-btn small-btn" data-action="close-paint">Close</button>
     </div>
   </div>
 

@@ -23,6 +23,7 @@ last-played first) plus **New player**.
 | Write | Blank handwriting lines with a small model card. The child's letter is scaled to the model before it's scored, so size and position don't matter. |
 | Success | Chime, confetti, spoken praise, and a ⭐ fills on the prize meter. |
 | Prize | When the meter fills, the child picks 1 of 3 prizes (the first prize is always the steam engine). The new piece pops into the world. |
+| Engine color | Right after earning the engine, the child picks its color (10 choices). Repaint any time with 🎨 in the train world. Saved per player. |
 | Train world | The train runs around the track, puffing smoke. Tap the train to toot and speed it up; tap scenery to make it wiggle. |
 
 Kid controls: 👀 Show me (animated stroke demo), 🧽 Erase, 🔤 Pick a letter, ⏭️ Next, ✅ Done, 🔊 hear the letter.

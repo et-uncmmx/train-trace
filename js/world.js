@@ -33,16 +33,25 @@
       '<rect x="-33" y="-12" width="4" height="3" fill="#444"/><rect x="29" y="-12" width="4" height="3" fill="#444"/>' +
       extra + wheels([-17, 17], 7);
   }
+  var ENGINE_COLORS = [
+    { id: 'red', name: 'Red', c: '#e63946' }, { id: 'blue', name: 'Blue', c: '#3a86ff' },
+    { id: 'green', name: 'Green', c: '#2a9d4a' }, { id: 'yellow', name: 'Yellow', c: '#ffbe0b', trim: '#e63946' },
+    { id: 'orange', name: 'Orange', c: '#fb8500' }, { id: 'purple', name: 'Purple', c: '#8338ec' },
+    { id: 'pink', name: 'Pink', c: '#ff5fa2' }, { id: 'teal', name: 'Teal', c: '#13a89e' },
+    { id: 'black', name: 'Black', c: '#3d405b' }, { id: 'brown', name: 'Brown', c: '#9c6644' }
+  ];
+  function engineColor(id) { return ENGINE_COLORS.filter(function (e) { return e.id === id; })[0] || ENGINE_COLORS[0]; }
   var D = {
-    engine: function () {
+    engine: function (i, colorId) {
+      var ec = engineColor(colorId), trim = ec.trim || '#ffd23f';
       return '<g>' +
         '<rect x="-31" y="-46" width="26" height="6" rx="2" fill="#2b2b2b"/>' +
-        '<rect x="-29" y="-41" width="22" height="31" rx="3" fill="#e63946"/>' +
+        '<rect x="-29" y="-41" width="22" height="31" rx="3" fill="' + ec.c + '"/>' +
         '<rect x="-25" y="-37" width="13" height="11" rx="2" fill="#bde8ff" stroke="#fff" stroke-width="1.5"/>' +
-        '<rect x="-8" y="-31" width="36" height="21" rx="10" fill="#e63946"/>' +
-        '<rect x="-8" y="-24" width="36" height="3" fill="#ffd23f"/>' +
+        '<rect x="-8" y="-31" width="36" height="21" rx="10" fill="' + ec.c + '"/>' +
+        '<rect x="-8" y="-24" width="36" height="3" fill="' + trim + '"/>' +
         '<rect x="13" y="-46" width="9" height="16" fill="#2b2b2b"/><rect x="10" y="-50" width="15" height="6" rx="2" fill="#2b2b2b"/>' +
-        '<circle cx="2" cy="-32" r="5" fill="#ffd23f"/>' +
+        '<circle cx="2" cy="-32" r="5" fill="' + trim + '"/>' +
         '<circle cx="29" cy="-21" r="3.5" fill="#fff6a8" stroke="#2b2b2b" stroke-width="1"/>' +
         '<rect x="-33" y="-12" width="64" height="5" rx="2" fill="#2b2b2b"/>' +
         '<polygon points="31,-12 40,0 28,0" fill="#2b2b2b"/>' +
@@ -342,7 +351,7 @@
     var carsSvg = cars.map(function (id, k) {
       carIdx[id] = (carIdx[id] || 0) + 1;
       var isNew = highlight && highlight.id === id && highlight.car === k;
-      return '<g class="car' + (isNew ? ' new-piece' : '') + '" data-car="' + k + '"><g class="flip"><g class="wig">' + D[id](carIdx[id] - 1) + '</g></g></g>';
+      return '<g class="car' + (isNew ? ' new-piece' : '') + '" data-car="' + k + '"><g class="flip"><g class="wig">' + D[id](carIdx[id] - 1, id === 'engine' ? state.engineColor : undefined) + '</g></g></g>';
     }).join('');
 
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -409,7 +418,9 @@
     start: function () { if (!raf && scene) { scene.last = 0; raf = requestAnimationFrame(frame); } },
     stop: function () { if (raf) cancelAnimationFrame(raf); raf = null; },
     boost: function () { if (scene) scene.boost = 3; },
-    carDrawing: function (id) { return D[id](0); },
+    carDrawing: function (id, colorId) { return D[id](0, colorId); },
+    ENGINE_COLORS: ENGINE_COLORS,
+    engineColor: engineColor,
     trainCars: trainCars
   };
 })();
