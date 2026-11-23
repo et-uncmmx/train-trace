@@ -1,5 +1,5 @@
 /* Train Trace service worker — caches the whole app for offline play. */
-var CACHE = 'train-trace-v4';
+var CACHE = 'train-trace-v5';
 var ASSETS = [
   './', 'index.html', 'css/styles.css',
   'js/glyphs.js', 'js/audio.js', 'js/world.js', 'js/app.js',

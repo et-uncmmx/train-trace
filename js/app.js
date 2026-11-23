@@ -11,7 +11,7 @@
   var STRICT = {
     // tol: how close ink must be to the path; cov: share of path covered; prec: share of ink near the path;
     // len: max ink length vs. path length (stops scribbling over everything); each: min coverage of every single stroke
-    trace: { easy: { tol: 11, cov: 0.75, prec: 0.7, len: 2.6, each: 0.65 }, medium: { tol: 9, cov: 0.85, prec: 0.78, len: 2.2, each: 0.7 }, hard: { tol: 7, cov: 0.9, prec: 0.85, len: 1.8, each: 0.75 } },
+    trace: { easy: { tol: 11, cov: 0.75, prec: 0.6, len: 3.0, each: 0.65 }, medium: { tol: 9, cov: 0.85, prec: 0.78, len: 2.2, each: 0.7 }, hard: { tol: 7, cov: 0.9, prec: 0.85, len: 1.8, each: 0.75 } },
     write: { easy: { tol: 14, cov: 0.68, prec: 0.65, len: 2.6, each: 0.6 }, medium: { tol: 12, cov: 0.78, prec: 0.72, len: 2.2, each: 0.65 }, hard: { tol: 10, cov: 0.85, prec: 0.8, len: 1.9, each: 0.7 } }
   };
   var PRAISE = ['Great job!', 'Awesome!', 'You did it!', 'Super tracing!', 'Wow, nice work!', 'Choo choo! Great job!', 'Fantastic!'];
@@ -180,7 +180,7 @@
     strokes = Glyphs.strokes(ch, 2);
     guide = [];
     strokes.forEach(function (st, si) { st.forEach(function (p) { guide.push({ x: p[0], y: p[1], s: si, c: false }); }); });
-    if (!keepInk) clearInk();
+    if (!keepInk) { clearInk(); failStreak = 0; }
     else recomputeCoverage();
     var label = /[0-9]/.test(ch) ? 'number' : 'letter';
     $('#promptText').textContent = (step === 'trace' ? 'Trace the ' : 'Write the ') + label;
@@ -287,7 +287,14 @@
     iCtx.beginPath(); iCtx.moveTo(X(a[0]), Y(a[1])); iCtx.lineTo(X(b[0]) + 0.01, Y(b[1])); iCtx.stroke();
   }
 
-  function tol() { return STRICT[cur.step][S.settings.strict] || STRICT[cur.step].easy; }
+  var failStreak = 0; // wiped attempts on the current letter
+  function tol() {
+    var base = STRICT[cur.step][S.settings.strict] || STRICT[cur.step].easy;
+    var k = S.settings.strict === 'hard' ? 0 : Math.min(failStreak, 2);
+    if (!k) return base;
+    // Never-stuck rule (Easy/Medium): each wipe on the same letter makes the next try a bit more forgiving
+    return { tol: base.tol * (1 + 0.12 * k), cov: base.cov - 0.04 * k, prec: base.prec - 0.07 * k, len: base.len + 0.4 * k, each: base.each - 0.05 * k };
+  }
   function markPoint(p) {
     var t = tol().tol, t2 = t * t, off = (t * 1.5) * (t * 1.5), minD = Infinity;
     for (var i = 0; i < guide.length; i++) {
@@ -353,10 +360,7 @@
 
   function evaluate(fromButton) {
     if (!cur || locked) return;
-    var need = tol();
-    var r = cur.step === 'trace' ? { cov: coverage(), prec: inkTotal ? 1 - inkOff / inkTotal : 0, len: inkLength() / guideLen(), each: minStrokeCov(guide.map(function (g) { return g.c; })) } : scoreWrite();
-    var neat = r.prec >= need.prec && r.len <= need.len;
-    var full = r.cov >= need.cov && r.each >= need.each;
+    var r = scoreNow(), neat = r.neat, full = r.full;
     if (full && neat) return success();
     if (cur.step === 'trace' && full && !neat) return gentleFail('Stay on the dotted path!');
     if (fromButton) {
@@ -365,16 +369,42 @@
       return gentleFail("Let's try again!");
     }
   }
+  function scoreNow() {
+    var need = tol();
+    var r = cur.step === 'trace' ? { cov: coverage(), prec: inkTotal ? 1 - inkOff / inkTotal : 0, len: inkLength() / guideLen(), each: minStrokeCov(guide.map(function (g) { return g.c; })) } : scoreWrite();
+    r.neat = r.prec >= need.prec && r.len <= need.len;
+    r.full = r.cov >= need.cov && r.each >= need.each;
+    r.pass = r.neat && r.full;
+    return r;
+  }
+  // QA hook: score a set of ink strokes (glyph units) for a character without touching game state.
+  function qaScore(ch, step, inkStrokes, strict) {
+    var saved = { cur: cur, guide: guide, strokes: strokes, ink: ink, t: inkTotal, o: inkOff, strict: S && S.settings.strict };
+    try {
+      cur = { ch: ch, step: step }; strokes = Glyphs.strokes(ch, 2); guide = [];
+      strokes.forEach(function (st, si) { st.forEach(function (p) { guide.push({ x: p[0], y: p[1], s: si, c: false }); }); });
+      if (S && strict) S.settings.strict = strict;
+      ink = inkStrokes; recomputeCoverage();
+      return scoreNow();
+    } finally {
+      cur = saved.cur; guide = saved.guide; strokes = saved.strokes; ink = saved.ink; inkTotal = saved.t; inkOff = saved.o;
+      if (S) S.settings.strict = saved.strict;
+    }
+  }
   function message(t, ms) {
     var m = $('#padMsg'); m.textContent = t; m.hidden = false;
     clearTimeout(message.t); message.t = setTimeout(function () { m.hidden = true; }, ms || 1800);
     Sound.say(t.replace('—', ','));
   }
   function gentleFail(t) {
+    failStreak++;
     Sound.oops(); message(t);
     pad.classList.remove('shake'); void pad.offsetWidth; pad.classList.add('shake');
     locked = true;
-    setTimeout(function () { locked = false; clearInk(); }, 900);
+    setTimeout(function () {
+      locked = false; clearInk();
+      if (failStreak >= 2 && cur) { message('Watch the train show you!', 2200); demo(); }
+    }, 900);
   }
 
   function success() {
@@ -393,8 +423,8 @@
     iCtx.globalCompositeOperation = 'source-atop'; iCtx.fillStyle = 'rgba(46,204,113,.85)'; iCtx.fillRect(0, 0, geo.w, geo.h); iCtx.globalCompositeOperation = 'source-over';
     setTimeout(function () {
       locked = false;
+      advance();                 // always move to the next letter first, so the finished one can't be counted twice
       if (earned) openReward();
-      else advance();
     }, 1700);
   }
   function advance() {
@@ -462,7 +492,14 @@
       if (locked || !cur) return;
       if (e.pointerType === 'pen') penSeen = true;
       if (penSeen && e.pointerType === 'touch') return;       // palm rejection when using Apple Pencil
-      if (activeId !== null) return;
+      if (activeId !== null) {
+        // A resting palm or second hand often lands first and doesn't move. If the current touch has barely
+        // moved, treat it as a palm: drop its ink and follow the new finger instead.
+        var cur0 = ink[ink.length - 1];
+        if (e.pointerType !== 'touch' || !cur0 || polyLen(cur0) > 3) return;
+        ink.pop(); try { cv.releasePointerCapture(activeId); } catch (er) { /* ignore */ }
+        recomputeCoverage(); redrawInk(); drawGuide();
+      }
       activeId = e.pointerId;
       try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
       clearTimeout(writeTimer); stopDemo(); $('#padMsg').hidden = true;
@@ -532,10 +569,10 @@
     return shuffle(out);
   }
   function openReward() {
-    if (S.progress.pending <= 0) { if (current === 'practice') advance(); return; }
+    if (S.progress.pending <= 0) return;
     var opts = pickOptions();
     if (!opts.length) { // everything collected: keep the count but nothing to add
-      S.progress.pending = 0; save(); renderMeters(); if (current === 'practice') advance(); return;
+      S.progress.pending = 0; save(); renderMeters(); return;
     }
     Sound.fanfare();
     Sound.say(opts.length === 1 ? 'You earned a prize! Your very own train engine!' : 'You earned a prize! Pick one!');
@@ -809,6 +846,6 @@
     registerSW();
   }
   // test hook
-  window.TrainTrace = { get state() { return S; }, get db() { return db; }, select: selectPlayer, get current() { return cur; }, geo: geo, save: save };
+  window.TrainTrace = { get state() { return S; }, get db() { return db; }, select: selectPlayer, get current() { return cur; }, geo: geo, save: save, qaScore: qaScore, qaStrict: STRICT };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
