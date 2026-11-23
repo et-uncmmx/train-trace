@@ -3,7 +3,8 @@
   'use strict';
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
-  var STORE = 'trainTrace.v1';
+  var DB_KEY = 'trainTrace.players.v1', LEGACY_KEY = 'trainTrace.v1';
+  var AVATARS = ['🦊', '🐻', '🐼', '🐸', '🦁', '🐰', '🐯', '🐵', '🐨', '🦄', '🐶', '🐱', '🐙', '🦖', '🐝', '🐧'];
   var ORDER = Glyphs.UPPER.concat(Glyphs.LOWER, Glyphs.NUMBERS);
 
   // Tolerances in glyph units (cap height = 80 units)
@@ -23,20 +24,83 @@
       progress: { completed: 0, since: 0, pending: 0, prizes: 0, owned: {}, carOrder: [], counts: {}, seq: 0 }
     };
   }
-  var S;
-  function load() {
-    S = defaults();
+  // ---------- players (each saves its own settings + progress) ----------
+  var db = { activeId: null, players: [] };
+  var S = null; // the active player record: { id, name, avatar, created, updated, settings, progress }
+  function normalize(pl) {
+    var d = defaults();
+    pl.settings = Object.assign(d.settings, pl.settings || {});
+    pl.progress = Object.assign(d.progress, pl.progress || {});
+    pl.settings.threshold = Math.max(1, Math.min(20, pl.settings.threshold | 0 || 3));
+    return pl;
+  }
+  function makePlayer(name, avatar, data) {
+    return normalize({ id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, avatar: avatar,
+      created: Date.now(), updated: Date.now(), settings: data && data.settings, progress: data && data.progress });
+  }
+  function writeDB() { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) { /* storage unavailable */ } }
+  function loadDB() {
     try {
-      var raw = JSON.parse(localStorage.getItem(STORE) || 'null');
-      if (raw) {
-        Object.assign(S.settings, raw.settings || {});
-        Object.assign(S.progress, raw.progress || {});
+      var raw = JSON.parse(localStorage.getItem(DB_KEY) || 'null');
+      if (raw && Array.isArray(raw.players)) db = raw;
+      else {
+        var legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');   // single-save version → "Player 1"
+        if (legacy) { db.players = [makePlayer('Player 1', AVATARS[0], legacy)]; writeDB(); localStorage.removeItem(LEGACY_KEY); }
       }
     } catch (e) { /* storage unavailable */ }
-    S.settings.threshold = Math.max(1, Math.min(20, S.settings.threshold | 0 || 3));
+    db.players.forEach(normalize);
   }
-  function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* ignore */ } }
-  function applyAudio() { Sound.enabled = S.settings.sound; Sound.voice = S.settings.voice; }
+  function save() { if (!S) return; S.updated = Date.now(); writeDB(); }
+  function selectPlayer(id) {
+    S = db.players.filter(function (p) { return p.id === id; })[0] || null;
+    if (!S) return;
+    db.activeId = id; save(); applyAudio();
+    cur = null; pendingHighlight = null;
+  }
+  function sortedPlayers() { return db.players.slice().sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }); }
+  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function piecesOwned(pl) { var n = 0; Object.keys(pl.progress.owned).forEach(function (k) { n += pl.progress.owned[k]; }); return n; }
+
+  function renderPlayers() {
+    var list = sortedPlayers();
+    $('#playersSub').textContent = list.length ? 'Tap your name to keep playing' : 'Make a new player to start';
+    $('#playerList').innerHTML = list.map(function (pl, i) {
+      return '<button class="player-card" data-player="' + pl.id + '">' +
+        (i === 0 ? '<span class="badge">Last played</span>' : '') +
+        '<span class="avatar">' + pl.avatar + '</span><span class="pname">' + esc(pl.name) + '</span>' +
+        '<span class="pstats">🚂 ' + piecesOwned(pl) + (piecesOwned(pl) === 1 ? ' piece' : ' pieces') + ' · ⭐ ' + pl.progress.completed + ' done</span></button>';
+    }).join('') +
+      '<button class="player-card new" data-action="new-player"><span class="avatar">➕</span><span class="pname">New player</span><span class="pstats">Start a new game</span></button>';
+  }
+  var newAvatar = AVATARS[0];
+  function openNewPlayer() {
+    var used = {}; db.players.forEach(function (p) { used[p.avatar] = 1; });
+    newAvatar = AVATARS.filter(function (a) { return !used[a]; })[0] || AVATARS[0];
+    $('#newName').value = '';
+    var copy = $('#newCopy');
+    copy.innerHTML = '<option value="">Default settings</option>' + sortedPlayers().map(function (p) {
+      return '<option value="' + p.id + '">Same settings as ' + esc(p.name) + '</option>';
+    }).join('');
+    $('#copyRow').hidden = !db.players.length;
+    renderAvatarGrid('#newAvatars', newAvatar);
+    $('#newPlayerModal').hidden = false;
+    setTimeout(function () { try { $('#newName').focus(); } catch (e) { /* ignore */ } }, 50);
+  }
+  function renderAvatarGrid(sel, chosen) {
+    $(sel).innerHTML = AVATARS.map(function (a) { return '<button data-avatar="' + a + '" class="' + (a === chosen ? 'on' : '') + '">' + a + '</button>'; }).join('');
+  }
+  function createPlayer() {
+    var name = $('#newName').value.trim().slice(0, 20) || ('Player ' + (db.players.length + 1));
+    var from = db.players.filter(function (p) { return p.id === $('#newCopy').value; })[0];
+    var pl = makePlayer(name, newAvatar, from ? { settings: JSON.parse(JSON.stringify(from.settings)) } : null);
+    db.players.push(pl);
+    $('#newPlayerModal').hidden = true;
+    selectPlayer(pl.id);
+    Sound.say('Hi ' + name + '! Let\'s build a train world!');
+    show('home');
+  }
+
+  function applyAudio() { if (!S) return; Sound.enabled = S.settings.sound; Sound.voice = S.settings.voice; }
   function enabledList() {
     var set = {}; S.settings.enabled.forEach(function (c) { set[c] = 1; });
     var l = ORDER.filter(function (c) { return set[c]; });
@@ -51,6 +115,7 @@
     if (name === 'world') { renderWorld(); World.start(); } else World.stop();
     if (name === 'practice') { requestAnimationFrame(function () { layoutPad(); if (!cur) nextChar(); else startChar(cur.ch, cur.step, true); }); }
     if (name === 'home') renderHome();
+    if (name === 'players') { renderPlayers(); return; }
     renderMeters();
   }
 
@@ -76,6 +141,7 @@
 
   // ---------- home ----------
   function renderHome() {
+    $('#playerChip').innerHTML = '<span class="avatar">' + S.avatar + '</span>' + esc(S.name) + ' <small>switch</small>';
     var svg = $('#homeTrain');
     var cars = ['engine', 'tender', 'passenger', 'caboose'];
     svg.innerHTML = '<g class="chug">' + cars.map(function (id, i) {
@@ -553,6 +619,9 @@
   function openSettings() { renderSettings(); $('#settingsModal').hidden = false; }
   function renderSettings() {
     var st = S.settings, p = S.progress;
+    $('#setTitle').textContent = 'Settings for ' + S.avatar + ' ' + S.name;
+    if (document.activeElement !== $('#setName')) $('#setName').value = S.name;
+    renderAvatarGrid('#setAvatars', S.avatar);
     $('#thRange').value = st.threshold; $('#thVal').textContent = st.threshold;
     $$('.seg').forEach(function (seg) {
       var key = seg.getAttribute('data-setting');
@@ -582,6 +651,11 @@
     save(); renderSettings(); renderMeters();
   }
   function bindSettings() {
+    $('#setName').addEventListener('input', function (e) {
+      var v = e.target.value.trim().slice(0, 20); if (!v) return;
+      S.name = v; save(); $('#setTitle').textContent = 'Settings for ' + S.avatar + ' ' + S.name;
+    });
+    $('#newName').addEventListener('keydown', function (e) { if (e.key === 'Enter') createPlayer(); });
     $('#thRange').addEventListener('input', function (e) { setThreshold(parseInt(e.target.value, 10)); });
     $$('[data-th]').forEach(function (b) { b.addEventListener('click', function () { setThreshold(S.settings.threshold + parseInt(b.getAttribute('data-th'), 10)); }); });
     $$('.seg button').forEach(function (b) {
@@ -624,6 +698,7 @@
       $('#settingsModal').hidden = true;
       if (current === 'practice') { if (!cur || enabledList().indexOf(cur.ch) < 0) nextChar(); else startChar(cur.ch, cur.step, true); }
       if (current === 'world') renderWorld();
+      if (current === 'home') renderHome();
       renderMeters();
     },
     speak: function () { if (cur) Sound.say((cur.step === 'trace' ? 'Trace ' : 'Write ') + Glyphs.spoken(cur.ch)); },
@@ -640,9 +715,20 @@
       S.progress.owned = {}; S.progress.carOrder = []; S.progress.prizes = 0; save(); renderSettings(); renderMeters();
     },
     'reset-all': function () {
-      if (!confirm('Reset ALL progress and settings?')) return;
-      try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
-      load(); applyAudio(); cur = null; renderSettings(); renderMeters();
+      if (!confirm('Reset ALL progress and settings for ' + S.name + '?')) return;
+      var d = defaults(); S.settings = d.settings; S.progress = d.progress;
+      save(); applyAudio(); cur = null; renderSettings(); renderMeters();
+    },
+    players: function () { Sound.say("Who's playing?"); show('players'); },
+    'new-player': openNewPlayer,
+    'create-player': createPlayer,
+    'cancel-new-player': function () { $('#newPlayerModal').hidden = true; },
+    'switch-player': function () { $('#settingsModal').hidden = true; show('players'); },
+    'delete-player': function () {
+      if (!confirm('Delete ' + S.name + ' and their whole train world? This cannot be undone.')) return;
+      db.players = db.players.filter(function (p) { return p.id !== S.id; });
+      S = null; db.activeId = null; writeDB();
+      $('#settingsModal').hidden = true; show('players');
     }
   };
   function bindActions() {
@@ -654,6 +740,15 @@
       if (opt) { claim(opt.getAttribute('data-piece')); return; }
       var ch = e.target.closest('#pickGrid [data-ch]');
       if (ch) { $('#pickModal').hidden = true; stopDemo(); startChar(ch.getAttribute('data-ch'), firstStep()); return; }
+      var pc = e.target.closest('[data-player]');
+      if (pc) { selectPlayer(pc.getAttribute('data-player')); Sound.say('Hi ' + S.name + '!'); show('home'); return; }
+      var av = e.target.closest('[data-avatar]');
+      if (av) {
+        var a = av.getAttribute('data-avatar');
+        if (av.closest('#newAvatars')) { newAvatar = a; renderAvatarGrid('#newAvatars', a); }
+        else { S.avatar = a; save(); renderSettings(); }
+        return;
+      }
       var key = e.target.closest('#gateKeys [data-key]');
       if (key) gateKey(key.getAttribute('data-key'));
     });
@@ -674,7 +769,7 @@
 
   // ---------- init ----------
   function init() {
-    load(); applyAudio();
+    loadDB();
     pad = $('#pad');
     gCtx = $('#guideCanvas').getContext('2d');
     fCtx = $('#fxCanvas').getContext('2d');
@@ -683,10 +778,10 @@
     window.addEventListener('resize', function () { if (current === 'practice') layoutPad(); });
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
     document.addEventListener('dblclick', function (e) { e.preventDefault(); });
-    show('home');
+    show('players');
     registerSW();
   }
   // test hook
-  window.TrainTrace = { get state() { return S; }, get current() { return cur; }, geo: geo, save: save };
+  window.TrainTrace = { get state() { return S; }, get db() { return db; }, select: selectPlayer, get current() { return cur; }, geo: geo, save: save };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

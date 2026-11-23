@@ -5,6 +5,16 @@ prize — a new train car or piece of scenery — that the child picks and adds 
 
 Runs fully **offline** on **iPad** and **desktop**. No build step, no dependencies, no network calls, no tracking.
 
+## Players (multiple kids, one device)
+On launch the game shows **Who's playing?** with a card for each saved player (avatar, name, pieces earned, letters done;
+last-played first) plus **New player**.
+
+- **New player:** type a name, pick an animal buddy, optionally *start with the same settings as* an existing player.
+- **Load:** tap a card to continue that child's game.
+- **Each player saves separately:** train world, prize progress, per-letter counts, **and all parent settings**.
+- **Switch:** tap the name chip on the home screen. Rename, change avatar, switch or delete a player in Parent Settings.
+- A save from the earlier single-player version is moved over automatically as "Player 1".
+
 ## How it plays
 
 | Step | What happens |
@@ -33,9 +43,10 @@ Tap ⚙️ on the home screen and answer a multiplication question (keeps little
 | Order | In order · Mixed up | In order |
 | What to practice | ABC / abc / 123 groups, or individual characters (shows completion count per character) | ABC + 123 |
 | Helpers | Start dots & arrows, auto "Show me", sound effects, spoken letters | All on |
-| Progress | Stats, give a prize now, reset train world, reset everything | — |
+| Player | Rename, change avatar, switch player, delete player | — |
+| Progress | Stats, give a prize now, reset train world, reset this player | — |
 
-Progress and settings are saved on the device (`localStorage`).
+All settings above apply to the current player only. Everything is saved on the device (`localStorage`, key `trainTrace.players.v1`).
 
 ## Running it
 
