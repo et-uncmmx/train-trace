@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Train Trace</title>
+  <meta name="description" content="Trace letters and numbers to build your own train world.">
+  <meta name="theme-color" content="#8ecae6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Train Trace">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- PLAYERS (shown on launch) -->
+  <section id="players" class="screen active">
+    <div class="players-inner">
+      <h1 class="title small-title"><span>Train</span> <span>Trace</span></h1>
+      <h2 class="who">Who's playing?</h2>
+      <p id="playersSub" class="sub"></p>
+      <div id="playerList" class="player-list"></div>
+    </div>
+  </section>
+
+  <!-- HOME -->
+  <section id="home" class="screen">
+    <button id="playerChip" class="player-chip" data-action="players" aria-label="Switch player"></button>
+    <button class="gear" data-action="parent" aria-label="Grown-up settings">⚙️</button>
+    <div class="home-inner">
+      <h1 class="title"><span>Train</span> <span>Trace</span></h1>
+      <svg id="homeTrain" class="home-train" viewBox="-180 -70 260 80" aria-hidden="true"></svg>
+      <div class="home-buttons">
+        <button class="big-btn go" data-action="practice"><span class="ico">✏️</span>Let's Trace!</button>
+        <button class="big-btn world" data-action="world"><span class="ico">🚂</span>My Train World</button>
+      </div>
+      <div id="homeMeter" class="meter home-meter"></div>
+    </div>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="screen">
+    <header class="topbar">
+      <button class="round" data-action="home" aria-label="Home">🏠</button>
+      <div id="meter" class="meter"></div>
+      <button class="round" data-action="world" aria-label="Train world">🚂</button>
+    </header>
+    <div class="practice-body">
+      <div class="board">
+        <div class="prompt">
+          <button class="round small" data-action="speak" aria-label="Say it">🔊</button>
+          <span id="promptText">Trace</span>
+          <span id="promptChar" class="prompt-char">A</span>
+          <div id="modelCard" class="model-card" hidden></div>
+        </div>
+        <div id="pad" class="pad">
+          <canvas id="guideCanvas"></canvas>
+          <canvas id="fxCanvas"></canvas>
+          <canvas id="inkCanvas"></canvas>
+          <div id="padMsg" class="pad-msg" hidden></div>
+        </div>
+      </div>
+      <nav class="tools">
+        <button class="tool" data-action="demo"><span>👀</span>Show me</button>
+        <button class="tool" data-action="erase"><span>🧽</span>Erase</button>
+        <button class="tool" data-action="pick"><span>🔤</span>Pick</button>
+        <button class="tool" data-action="skip"><span>⏭️</span>Next</button>
+        <button class="tool done" data-action="done"><span>✅</span>Done</button>
+      </nav>
+    </div>
+  </section>
+
+  <!-- WORLD -->
+  <section id="world" class="screen">
+    <header class="topbar">
+      <button class="round" data-action="home" aria-label="Home">🏠</button>
+      <div id="worldMeter" class="meter"></div>
+      <button id="paintBtn" class="round" data-action="paint" aria-label="Paint engine" hidden>🎨</button>
+      <button class="round pill" data-action="practice">✏️ Trace</button>
+    </header>
+    <div class="world-wrap">
+      <svg id="worldSvg" class="world-svg" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="worldHint" class="world-hint" hidden></div>
+    </div>
+  </section>
+
+  <!-- MODALS -->
+  <div id="rewardModal" class="modal" hidden>
+    <div class="modal-card reward-card">
+      <div class="gift-burst">🎁</div>
+      <h2>You earned a prize!</h2>
+      <p class="sub">Pick one for your train world</p>
+      <div id="rewardOptions" class="reward-options"></div>
+    </div>
+  </div>
+
+  <div id="paintModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="gift-burst">🎨</div>
+      <h2 id="paintTitle">Paint your engine!</h2>
+      <div id="paintGrid" class="paint-grid"></div>
+      <button class="big-btn small-btn" data-action="close-paint">Close</button>
+    </div>
+  </div>
+
+  <div id="pickModal" class="modal" hidden>
+    <div class="modal-card">
+      <h2>Pick one to trace</h2>
+      <div id="pickGrid" class="char-grid kid"></div>
+      <button class="big-btn small-btn" data-action="close-pick">Close</button>
+    </div>
+  </div>
+
+  <div id="newPlayerModal" class="modal" hidden>
+    <div class="modal-card new-player-card">
+      <h2>New player</h2>
+      <p class="sub">Type a name and pick a buddy</p>
+      <input id="newName" class="name-input" type="text" maxlength="20" placeholder="Name" autocomplete="off" autocapitalize="words" spellcheck="false">
+      <div id="newAvatars" class="avatar-grid"></div>
+      <label id="copyRow" class="copy-row">Start with <select id="newCopy"></select></label>
+      <div class="btn-row center">
+        <button class="big-btn small-btn" data-action="cancel-new-player">Cancel</button>
+        <button class="big-btn small-btn go" data-action="create-player">Start! 🚂</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="gateModal" class="modal" hidden>
+    <div class="modal-card gate-card">
+      <h2>Grown-ups only</h2>
+      <p class="sub">Solve to open settings: <b id="gateQ"></b></p>
+      <div id="gateDisplay" class="gate-display">&nbsp;</div>
+      <div id="gateKeys" class="gate-keys"></div>
+      <button class="link-btn" data-action="close-gate">Cancel</button>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-card settings-card">
+      <div class="settings-head">
+        <h2 id="setTitle">Parent Settings</h2>
+        <button class="round small" data-action="close-settings" aria-label="Close">✖️</button>
+      </div>
+      <div class="settings-body">
+        <section class="set">
+          <h3>Player</h3>
+          <p class="hint">Each player has their own train world, progress and settings, all saved on this device.</p>
+          <input id="setName" class="name-input left" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Player name">
+          <div id="setAvatars" class="avatar-grid left"></div>
+          <div class="btn-row">
+            <button class="act" data-action="switch-player">👥 Switch player</button>
+            <button class="act warn" data-action="delete-player">Delete this player</button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>Prize threshold</h3>
+          <p class="hint">Earn one train piece every <b><span id="thVal">3</span></b> completed letters/numbers.</p>
+          <div class="stepper">
+            <button data-th="-1">−</button>
+            <input id="thRange" type="range" min="1" max="20" step="1">
+            <button data-th="1">+</button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>Activity</h3>
+          <div class="seg" data-setting="mode">
+            <button data-v="trace">Trace<small>dotted guide</small></button>
+            <button data-v="write">Write<small>blank lines</small></button>
+            <button data-v="both">Trace → Write<small>same letter twice</small></button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>Neatness needed</h3>
+          <div class="seg" data-setting="strict">
+            <button data-v="easy">Easy<small>age 3–4</small></button>
+            <button data-v="medium">Medium<small>age 4–5</small></button>
+            <button data-v="hard">Hard<small>age 5+</small></button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>Order</h3>
+          <div class="seg" data-setting="order">
+            <button data-v="sequence">In order</button>
+            <button data-v="shuffle">Mixed up</button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>What to practice</h3>
+          <div class="chips">
+            <button data-group="UPPER">ABC</button>
+            <button data-group="LOWER">abc</button>
+            <button data-group="NUMBERS">123</button>
+          </div>
+          <p class="hint">Tap a group to toggle it, or tap single characters. Badges show how many times each was completed.</p>
+          <div id="charToggles" class="char-grid parent"></div>
+        </section>
+        <section class="set">
+          <h3>Helpers &amp; sound</h3>
+          <label class="toggle"><input type="checkbox" data-bool="guides"> Show numbered start dots &amp; arrows</label>
+          <label class="toggle"><input type="checkbox" data-bool="autoDemo"> Play “Show me” automatically for each new letter</label>
+          <label class="toggle"><input type="checkbox" data-bool="sound"> Sound effects</label>
+          <label class="toggle"><input type="checkbox" data-bool="voice"> Say letters &amp; praise out loud</label>
+        </section>
+        <section class="set">
+          <h3>Progress</h3>
+          <div id="stats" class="stats"></div>
+          <div class="btn-row">
+            <button class="act" data-action="give-prize">🎁 Give a prize now</button>
+            <button class="act warn" data-action="reset-world">Reset train world</button>
+            <button class="act warn" data-action="reset-all">Reset this player</button>
+          </div>
+        </section>
+        <section class="set">
+          <h3>Offline use</h3>
+          <p class="hint">iPad: open in Safari → Share → <b>Add to Home Screen</b>. Desktop Chrome/Edge: use the install icon in the address bar. After the first load the game works with no internet. Progress is saved on this device.</p>
+          <p class="hint" id="offlineStatus"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <script src="js/glyphs.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
